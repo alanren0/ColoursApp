@@ -3,11 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -82,14 +80,7 @@ func (pg postgres) CreatePalette(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// turn colours array to string
-	coloursStr := strings.Join(p.Colours, "', '")
-	coloursStr = "'" + coloursStr + "'"
-
-	// add to query
-	query := fmt.Sprintf("INSERT INTO palettes (title, colours) VALUES ('%s', ARRAY[%s]);", p.Title, coloursStr)
-
-	_, err2 := pg.db.Exec(context.Background(), query)
+	_, err2 := pg.db.Exec(context.Background(), "INSERT INTO palettes (title, colours) VALUES ($1, $2)", p.Title, p.Colours)
 	if err2 != nil {
 		panic(err2)
 	}
@@ -98,16 +89,17 @@ func (pg postgres) CreatePalette(w http.ResponseWriter, r *http.Request) {
 // return palettes
 func (pg postgres) GetPalettes(w http.ResponseWriter, r *http.Request) {
 
-	query := "SELECT * FROM palettes LIMIT 10"
+	query := "SELECT * FROM palettes LIMIT 10 OFFSET $1"
+	offset := 0
 
 	// add url param
-	offset := r.URL.Query().Get("offset")
-	if _, err := strconv.Atoi(offset); offset != "" && err == nil {
-		query = query + " OFFSET " + offset
+	offsetParam := r.URL.Query().Get("offset")
+	if offsetNum, err := strconv.Atoi(offsetParam); offsetParam != "" && err == nil {
+		offset = offsetNum
 	}
 
 	// get rows
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := pg.db.Query(context.Background(), query, offset)
 	if err != nil {
 		panic(err)
 	}
@@ -129,8 +121,4 @@ func (pg postgres) GetPalettes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.JSON(w, r, palettes)
-}
-
-func (pg postgres) deletePalette(w http.ResponseWriter, r *http.Request) {
-
 }
